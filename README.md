@@ -1,2 +1,2 @@
 # beeMMX-R
-A rescripted/reworked/remade/repythonized version of BMMX.
+beeMMX R is a rescripted/reworked/remade/repythonized version of BMMX.
