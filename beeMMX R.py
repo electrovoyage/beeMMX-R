@@ -1,4 +1,4 @@
-ver = '1'
+ver = '0.2'
 print('beeMMX R v.'+ver+' loaded')
 
 import tkinter as tk
