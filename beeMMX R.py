@@ -5,7 +5,7 @@ import tkinter as tk
 import tkinter.messagebox as msg
 import datetime as dt
 
-release = '1'
+release = '0'
 year = '2023'
 
 windowMain = tk.Tk()
