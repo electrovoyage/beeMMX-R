@@ -5,7 +5,7 @@ beeMMX R is an application that generates full BEE2.4 music packages. Made in Py
 ### Building the app
 To build the app, you will need the following libraries:
 * `tkinter` - UI
-* `PIL` `(pillow)` - loading images
+* `PIL` (`pillow`) - loading images
 * `os` - getting path of `sys.executable`, `os.chdir` if 'Open with' is used
 * `mutagen` - length of audio
 * `keyboard` - "Hold down SHIFT to dismiss this message."
