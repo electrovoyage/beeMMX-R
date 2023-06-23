@@ -10,17 +10,39 @@ import sys
 import json
 import shutil
 import webbrowser as web
+from datetime import date as dt
+import darkdetect as drk
+
+if len(sys.argv)>1:
+    os.chdir(os.path.dirname(sys.executable))
 
 def openDir():
-    web.open('file:///'+os.getcwd())
+    web.open('file:///'+os.path.dirname(sys.executable))
 
 def Image(name):
-    return it.PhotoImage(img.open(os.getcwd()+'/'+name))
+    return it.PhotoImage(img.open(os.getcwd()+'/media/missing.png') if (dt.today().day==1 and dt.today().month==4) or name.strip()=='' else (img.open(os.getcwd()+'/'+name)))
 
 music = []
 
+class Style:
+    def __init__(self,name,id,authors,ui_name):
+        self.name = name
+        self.id = id
+        self.authors = authors
+        self.ui_name = ui_name
+
+class gelData:
+    def __init__(self,files:dict[tuple | str]):
+        self.files = files
+
+class funnelData:
+    def __init__(self,file:str,sync:bool=False,used:bool=False):
+        self.file=file
+        self.sync=sync
+        self.used=used
+
 class Track:
-    def __init__(self,ID,short_title,title,description,authors,length,image,preview,music,sample,group,key,style,noLarge):
+    def __init__(self,ID:str,short_title:str,title:str,description:str,authors:str,length:str,image:str,preview:str,music:str,sample:str,group:str,key:str,style:Style,noLarge:bool,gels:gelData|None,funnel:funnelData|None):
         self.id = ID
         self.short_title = short_title
         self.title = title
@@ -35,13 +57,8 @@ class Track:
         self.key = key
         self.style = style
         self.noLarge = noLarge
-
-class Style:
-    def __init__(self,name,id,authors,ui_name):
-        self.name = name
-        self.id = id
-        self.authors = authors
-        self.ui_name = ui_name
+        self.gels = gels
+        self.funnel = funnel
 
 styles = {
     'bts':Style('Behind The Scenes','BEE2_BTS','TeamSpen210',''),
@@ -72,52 +89,147 @@ for i in styles:
         styleNames.append(styles[i].ui_name)
 
 def label(win,column,row,text):
-    tk.Label(win,text=text).grid(column=column,row=row,padx=5)
+    tk.Label(win,text=text,foreground=light,background=dark).grid(column=column,row=row,padx=5)
 
-def field(win,column,row):
-    fld = tk.Entry(win)
+def field(win,column,row,off=False):
+    fld = tk.Entry(win,foreground=light,background=darkField,relief='flat',disabledbackground=inactive,disabledforeground=darkField,state= 'disabled' if off else 'normal')
     fld.grid(column=column,row=row,padx=5,pady=5)
     return fld
 
-def labelField(win,col,row,text):
-    tk.Label(win,text=text).grid(column=col,row=row,padx=5)
-    fld = field(win,col,row+1)
+def labelField(win,col,row,text,startInactive=False):
+    label(win,col,row,text)
+    fld = field(win,col,row+1,startInactive)
     return fld
 
-main = tk.Tk()
-main.iconbitmap(os.getcwd()+'/media/icon.ico')
-main.resizable(False,False)
-main.title('beeMMX R')
+win = tk.Tk()
 
-packdata = tk.LabelFrame(main,text='Package information',labelanchor='n')
+darkmode = tk.BooleanVar(win,drk.isDark())
+
+global dark, light, darkField, inactive
+
+dark = '#111133' if darkmode.get() else None
+light = '#FFFFFF' if darkmode.get() else None
+darkField = '#333355' if darkmode.get() else '#FFFFFF'
+inactive = '#202030' if darkmode.get() else '#DDDDDD'
+
+def reloadTheme():
+
+    global dark, light, darkField, inactive
+
+    dark = '#111133' if darkmode.get() else '#EEEEEE'
+    light = '#FFFFFF' if darkmode.get() else '#000000'
+    darkField = '#333355' if darkmode.get() else '#FFFFFF'
+    inactive = '#000020' if darkmode.get() else '#DDDDDD'
+
+    for i in main.winfo_children():
+        for f in i.winfo_children():
+            if type(f)!=type(ttk.Combobox()):
+                print(f,type(f),sep=' | ')
+                match type(f):
+                    case tk.Entry:
+                        f.configure(foreground=light,background=darkField,relief='flat',disabledbackground=inactive,disabledforeground=darkField)
+                    case tk.Listbox:
+                        f.config(yscrollcommand=scrollbar.set,relief='flat',background=darkField,foreground=light)
+                    case tk.Checkbutton:
+                        f.config(background=dark,foreground=light,activebackground=dark,activeforeground=light,selectcolor=darkField)
+                    case tk.Label:
+                        f.config(background=dark,foreground=light)
+                    case tk.Button:
+                        f.config(background=darkField,foreground=light)
+                    case tk.Spinbox:
+                        f.config(foreground=light,background=darkField,buttonbackground=dark)
+        if type(i)==tk.LabelFrame:
+            i.configure(background=dark,foreground=light)
+    main.config(bg=dark)
+    extra.config(bg=dark)
+
+    #for i in extra.winfo_children():
+    #    for f in i.winfo_children():
+    #        if type(f)!=type(ttk.Combobox()):
+    #            print(f,type(f),sep=' | ')
+    #            match type(f):
+    #                case tk.Entry:
+    #                    f.configure(foreground=light,background=darkField,relief='flat',disabledbackground=inactive,disabledforeground=darkField)
+    #                case tk.Listbox:
+    #                    f.config(yscrollcommand=scrollbar.set,relief='flat',background=darkField,foreground=light)
+    #                case tk.Checkbutton:
+    #                    f.config(background=dark,foreground=light,activebackground=dark,activeforeground=light,selectcolor=darkField)
+    #                case tk.Label:
+    #                    f.config(background=dark,foreground=light)
+    #                case tk.Button:
+    #                    f.config(background=darkField,foreground=light)
+    #                case tk.Spinbox:
+    #                    f.config(foreground=light,background=darkField,buttonbackground=dark)
+    #                case _:
+    #                    pass
+    #    if type(i)==tk.LabelFrame:
+    #        i.configure(background=dark,foreground=light)
+
+    for i in extra.winfo_children():
+        i.config(background=dark,foreground=light)
+        for g in i.winfo_children():
+            print(str(type(g)))
+            match type(g):
+                case tk.Checkbutton:
+                    g.config(background=dark,foreground=light,activebackground=dark,activeforeground=light,selectcolor=darkField)
+                case tk.Button:
+                    g.config(background=darkField,foreground=light,activebackground=darkField,activeforeground=light,disabledforeground=inactive)
+                case tk.Label:
+                    g.config(background=dark,foreground=light)
+                case tk.Entry:
+                    g.configure(foreground=light,background=darkField,relief='flat',disabledforeground=darkField,disabledbackground=inactive)
+                case _:
+                    print(str(type(g))+' failed! [line 164]')
+
+    win.config(background=dark)
+
+    fileMenu.config(background=darkField,foreground=light)
+    openMenu.config(background=darkField,foreground=light)
+    menu.config(background=darkField,foreground=light)
+    
+    for i in menu.winfo_children():
+        f.config(background=darkField,foreground=light)
+
+tabs = ttk.Notebook(win)
+
+main = tk.Frame(tabs,background=dark)
+main.pack(side=tk.BOTTOM,fill=tk.BOTH)
+
+win.iconbitmap(os.getcwd()+'/media/icon.ico')
+win.resizable(False,False)
+win.title('beeMMX R')
+
+packdata = tk.LabelFrame(main,text='Package information',labelanchor='n',background = dark, foreground = light)
 packdata.grid(row=0,column=0,padx=5,pady=5)
 
-tk.Label(packdata,text='Package name').grid(row=0,column=0,padx=5)
-tk.Label(packdata,text='Package description').grid(row=0,column=1,padx=5)
-tk.Label(packdata,text='Package ID').grid(row=2,column=0,padx=5)
-tk.Label(packdata,text='Track ID prefix').grid(row=2,column=1,padx=5)
+tk.Label(packdata,text='Package name',foreground=light,background=dark).grid(row=0,column=0,padx=5)
+tk.Label(packdata,text='Package description',foreground=light,background=dark).grid(row=0,column=1,padx=5)
+tk.Label(packdata,text='Package ID',foreground=light,background=dark).grid(row=2,column=0,padx=5)
+tk.Label(packdata,text='Track ID prefix',foreground=light,background=dark).grid(row=2,column=1,padx=5)
 
-packtitle = tk.Entry(packdata)
+main.config(background=dark)
+
+packtitle = tk.Entry(packdata,foreground=light,background=darkField,relief='flat')
 packtitle.grid(row=1,column=0,padx=5,pady=5)
-packdesc = tk.Entry(packdata)
+packdesc = tk.Entry(packdata,foreground=light,background=darkField,relief='flat')
 packdesc.grid(row=1,column=1,padx=5,pady=5)
-packid = tk.Entry(packdata)
+packid = tk.Entry(packdata,foreground=light,background=darkField,relief='flat')
 packid.grid(row=3,column=0,padx=5,pady=5)
-prefix = tk.Entry(packdata)
+prefix = tk.Entry(packdata,foreground=light,background=darkField,relief='flat')
 prefix.grid(row=3,column=1,padx=5,pady=5)
 
-trackdata = tk.LabelFrame(main,text='Track information',labelanchor='n')
+trackdata = tk.LabelFrame(main,text='Track information',labelanchor='n',background=dark,foreground=light)
 trackdata.grid(row=0,column=1,padx=5,pady=5)
 
-desc = tk.Entry(trackdata)
+desc = tk.Entry(trackdata,foreground=light,background=darkField,relief='flat')
 desc.grid(row=1,column=0,padx=5,pady=5)
-tk.Label(trackdata,text='Description').grid(row=0,column=0,padx=5)
+tk.Label(trackdata,text='Description',foreground=light,background=dark).grid(row=0,column=0,padx=5)
 
-title = tk.Entry(trackdata)
+title = tk.Entry(trackdata,foreground=light,background=darkField,relief='flat')
 title.grid(row=1,column=1,pady=5,padx=5)
 label(trackdata,1,0,'Name')
 
-shortName = tk.Entry(trackdata)
+shortName = tk.Entry(trackdata,foreground=light,background=darkField,relief='flat')
 shortName.grid(row=1,column=2,padx=5,pady=5)
 label(trackdata,2,0,'Short name')
 
@@ -126,7 +238,7 @@ loopvar = tk.BooleanVar(main,False)
 def setLoop():
     tLen.config(state=('disabled' if loopvar.get() else 'normal'))
 
-dontLoop = tk.Checkbutton(trackdata,text="Don't loop",variable = loopvar,command=setLoop)
+dontLoop = tk.Checkbutton(trackdata,text="Don't loop",variable = loopvar,command=setLoop,foreground=light,background=dark,relief='flat',activebackground=dark,activeforeground=light,selectcolor=darkField)
 dontLoop.grid(row=1,column=3,padx=5,pady=5)
 
 authors = field(trackdata,0,3)
@@ -136,13 +248,13 @@ tLen = labelField(trackdata,1,2,'Length')
 tID = labelField(trackdata,2,2,'ID')
 group = labelField(trackdata,3,2,'Group')
 
-sortKey = tk.Spinbox(trackdata,from_=1,to=4294967296)
-tk.Label(trackdata,text='Sort key').grid(row=4,column=0,padx=5,columnspan=2)
+sortKey = tk.Spinbox(trackdata,from_=1,to=4294967296,foreground=dark,background=light,buttonbackground=dark,buttondownrelief=tk.FLAT,buttonuprelief=tk.FLAT)
+tk.Label(trackdata,text='Sort key',foreground=light,background=dark).grid(row=4,column=0,padx=5,columnspan=2)
 sortKey.grid(row=5,column=0,padx=5,pady=5,columnspan=2)
 
 stylevar = tk.StringVar(main,'Clean')
 
-tk.Label(trackdata,text='Suggested style').grid(row=4,column=2,columnspan=2,padx=5,pady=5)
+tk.Label(trackdata,text='Suggested style',background=dark,foreground=light).grid(row=4,column=2,columnspan=2,padx=5,pady=5)
 style = ttk.Combobox(trackdata,textvariable=stylevar,values=styleNames,state='readonly')
 style.grid(row=5,column=2,padx=5,pady=5,columnspan=2,ipadx=25)
 
@@ -162,7 +274,7 @@ file_ico = Image('media/file.png')
     #print('Image data failed to load, skipping...')
     #file_ico = None
 
-trackmedia = tk.LabelFrame(main,text='Track media',labelanchor='n')
+trackmedia = tk.LabelFrame(main,text='Track media',labelanchor='n',background=dark,foreground=light)
 trackmedia.grid(row=1,column=1,padx=5,pady=5)
 
 prev = labelField(trackmedia,0,0,'Preview (1:1)')
@@ -210,10 +322,10 @@ def track():
         tLen.delete(0,tk.END)
         tLen.insert(tk.END,str(int(mg.File(file.name).info.length//60))+':'+str(int(mg.File(file.name).info.length%60)))
 
-tk.Button(trackmedia,image=file_ico,command=preview).grid(row=1,column=1,padx=5,pady=5)
-tk.Button(trackmedia,image=file_ico,command=phot).grid(row=1,column=3,padx=5,pady=5)
-tk.Button(trackmedia,image=file_ico,command=sample).grid(row=1,column=5,padx=5,pady=5)
-tk.Button(trackmedia,image=file_ico,command=track).grid(row=1,column=7,padx=5,pady=5)
+tk.Button(trackmedia,image=file_ico,command=preview,foreground=light,background=darkField,relief='flat').grid(row=1,column=1,padx=5,pady=5)
+tk.Button(trackmedia,image=file_ico,command=phot,foreground=light,background=darkField,relief='flat').grid(row=1,column=3,padx=5,pady=5)
+tk.Button(trackmedia,image=file_ico,command=sample,foreground=light,background=darkField,relief='flat').grid(row=1,column=5,padx=5,pady=5)
+tk.Button(trackmedia,image=file_ico,command=track,foreground=light,background=darkField,relief='flat').grid(row=1,column=7,padx=5,pady=5)
 
 def checklists():
     if shortName.get().strip()=='':
@@ -266,10 +378,14 @@ def addToList():
                             break
                 if not duplicate:
                     if tID.get()!='Package':
-                        music.append(Track(tID.get(),shortName.get(),title.get(),desc.get(),authors.get(),-1 if loopvar.get() else (tLen.get()),photo.get(),prev.get(),trac.get(),samp.get(),group.get(),sortKey.get(),style=styles[tuple(styles.keys())[styleNames.index(stylevar.get())]], noLarge=skipImg.get()))
-                        tracklist.insert(tk.END,tID.get())
+                        try:
+                            int(sortKey.get())
+                            music.append(Track(tID.get(),shortName.get(),title.get(),desc.get(),authors.get(),-1 if loopvar.get() else (tLen.get()),photo.get(),prev.get(),trac.get(),samp.get(),group.get(),sortKey.get(),style=styles[tuple(styles.keys())[styleNames.index(stylevar.get())]], noLarge=skipImg.get()))
+                            tracklist.insert(tk.END,tID.get())
 
-                        resetFields()
+                            resetFields()
+                        except:
+                            msg.showerror('Not a number','Sort key must be a number! No operations have been performed.')
                     else:
                         msg.showerror("Invalid ID','The ID you entered is invalid! Please do not name your song IDs 'Package', as this will break the saving/loading functions.")
                 else:
@@ -324,22 +440,29 @@ def opn():
         reset(prev,tr.preview)
         reset(photo,tr.image)
 
-actions = tk.LabelFrame(main,text='Actions',labelanchor='n')
+        if tr.funnel!=None:
+            reset(funnelFile,tr.funnel.file)
+            enableFunnel.set(funnel.used)
+        else:
+            enableFunnel.set(False)
+        funnelChange()
+
+actions = tk.LabelFrame(main,text='Actions',labelanchor='n',background=dark,foreground=light)
 actions.grid(row=1,column=0,padx=5,pady=5)
 
-add = tk.Button(actions,text='Add',command=addToList)
+add = tk.Button(actions,text='Add',command=addToList,background=darkField,foreground=light,relief='flat',activebackground=darkField,activeforeground=light)
 add.grid(row=0,column=0,padx=10,pady=10)
 
-load = tk.Button(actions,text='Load selected',command=opn)
+load = tk.Button(actions,text='Load selected',command=opn,background=darkField,foreground=light,relief='flat',activebackground=darkField,activeforeground=light)
 load.grid(row=1,column=0,padx=10,pady=10)
 
-tracks = tk.LabelFrame(main,text='Your tracks',labelanchor='n')
+tracks = tk.LabelFrame(main,text='Your tracks',labelanchor='n',background=dark,foreground=light)
 tracks.grid(row=0,column=2,padx=5,pady=5,rowspan=2,ipady=100)
 
-scrollbar=tk.Scrollbar(tracks)
+scrollbar=ttk.Scrollbar(tracks)
 scrollbar.pack(side='right',fill='y')
 
-tracklist = tk.Listbox(tracks,yscrollcommand=scrollbar.set)
+tracklist = tk.Listbox(tracks,yscrollcommand=scrollbar.set,relief='flat',background=darkField,foreground=light)
 tracklist.pack(side='left',fill='both')
 
 scrollbar.config(command = tracklist.yview)
@@ -357,6 +480,7 @@ def ind(i):
     return '\t'*i
 
 def BProperty(name,value):
+    print('Property "'+name+'" generated with value "'+value+'"')
     return '"'+name+'" "'+value+'"\n'
 
 def generate():
@@ -370,7 +494,7 @@ def generate():
         msg.showerror('No music in list','There is no music in the package! A package cannot be generated.')
     else:
         if prefix.get().strip()=='':
-            msg.showwarning('No prefix','The prefix field is empty! This means the ID could conflict with other UCPs! The compiler has not been interrupted.')
+            msg.showwarning('No prefix','The prefix field is empty! This means the ID could conflict with other UCPs. The compiler has not been interrupted.')
 
         zipfile = fs.asksaveasfilename(initialfile=str.lower(packid.get())+'.bee_pack',confirmoverwrite=True,filetypes=[('BEE2.4 package file','.bee_pack')],title='Compile package',initialdir=(None if beepath=='' else beepath))
         if zipfile!='':
@@ -380,13 +504,31 @@ def generate():
             with open(os.getcwd()+'/temp/info.txt','w') as inf:
 
                 indent = 0
+
+                inf.write('// Generated by beeMMX R')
+                inf.write('// the BEE2 music package generator')
+
                 inf.write('"ID" "'+packid.get()+'"\n')
                 inf.write('"Name" "'+packtitle.get()+'"\n')
                 inf.write('"Desc" "'+packdesc.get()+'"\n\n')
 
-                inf.write('\n"Overrides"\n')
-                indent+=1
-                inf.write('\t'*indent+'{\n')
+                global allNone, noneStyled
+                noneStyled=0
+
+                for i in music:
+                    if i.style=='none':
+                        noneStyled+=1
+
+                if noneStyled==len(music):
+                    allNone=True
+                else:
+                    allNone=False
+
+                if not allNone:
+                    inf.write('\n"Overrides"\n')
+                    indent+=1
+                    inf.write('\t'*indent+'{\n')
+
 
                 for g in styles:
 
@@ -425,7 +567,7 @@ def generate():
                             indent-=1
 
                             indent+=1
-
+                        
                 for i in music:
                     print(indent)
                     inf.write('"Music"\n')
@@ -475,6 +617,8 @@ def generate():
             os.rename(os.path.splitext(zipfile)[0]+'.zip',os.path.splitext(zipfile)[0]+'.bee_pack')
             shutil.rmtree(os.getcwd()+'/temp/')
 
+        del(allNone,noneStyled)
+
 def save():
 
     if len(music)!=0:
@@ -506,7 +650,7 @@ def save():
                     'Key':i.key,
                     'Loop_length':i.length,
                     'NoLoop':i.length==-1,
-                    'NoSmall':i.prev==-1,
+                    'NoSmall':i.preview==-1,
                     'Style':tuple(styles.keys())[styleNames.index(stylevar.get())]
                 }})
 
@@ -517,33 +661,58 @@ def save():
         else:
             msg.showerror('No music','There is no music in the package! The save operation has been cancelled.')    
 
-def loadFile():
+def isLegacy(data: list[str]=['']):
+    isLegacyFile = True
+    for i in data:
+        if '"Funnel"' in i or '"Gel"' in i:
+            isLegacyFile = False
+            break
+    return isLegacyFile
+
+def loadFile(fileIn=None):
     
-    file = fs.askopenfile(defaultextension='.bxs',filetypes=[('beeMMX R save file','.bxs .beemmx .bxsave')],title='Load beeMMX R project file')
+    if fileIn==None:
+        file = fs.askopenfilename(defaultextension='.bxs',filetypes=[('beeMMX R save file','.bxs .beemmx .bxsave')],title='Load beeMMX R project file')
+    else:
+        file=fileIn
 
     if file != None:
-        ask = msg.askyesno('Please confirm','Are you sure you want to overwrite all data for values from this project?')
+        if fileIn==None:
+            ask = msg.askyesno('Please confirm','Are you sure you want to overwrite all data for values from this project?')
+        else:
+            ask = True
 
         if ask:
+                
+            legacy = isLegacy(file.readlines())
+
+            if legacy:
+                print('Legacy file detected! Skipping funnel and gel music...')
 
             savedata = json.load(file)
             trackDicts = tuple(savedata.keys())[1:]
+
             reset(packid,savedata['Package']['ID'])
             reset(packtitle,savedata['Package']['Name'])
             reset(packdesc,savedata['Package']['Desc'])
             reset(prefix,savedata['Package']['Prefix'])
 
             music.clear()
-
             tracklist.delete(0,tk.END)
-
+            
             for i in trackDicts:
                 tr = savedata[i]
-                music.append(Track(i,tr['ShortName'].replace('\\"','"'),tr['Name'].replace('\\"','"'),tr['Desc'].replace('\\"','"'),tr['Authors'].replace('\\"','"'),tr['Loop_length'],tr['Image'],tr['Preview'],tr['Music'],tr['Sample'],tr['Group'].replace('\\"','"'),tr['Key'],styles[tr['Style']],tr['NoSmall']))
+                music.append(Track(i,tr['ShortName'].replace('\\"','"'),tr['Name'].replace('\\"','"'),tr['Desc'].replace('\\"','"'),tr['Authors'].replace('\\"','"'),tr['Loop_length'],tr['Image'],tr['Preview'],tr['Music'],tr['Sample'],tr['Group'].replace('\\"','"'),tr['Key'],styles[tr['Style']],tr['NoSmall'],gelData(check(tr,'Gels')),funnelData(check(tr,'Funnel'))))
                 tracklist.insert(tk.END,i)
 
 def discord():
     web.open('https://discord.gg/CGAvCwdJHM')
+
+def check(container: tuple | list | dict, index):
+    try:
+        return container[index]
+    except IndexError:
+        return None
 
 def askpath():
     pth = fs.askdirectory(mustexist=True,title='Select BEE2 packages folder')
@@ -556,8 +725,8 @@ def askpath():
         else:
             msg.showerror('Not a packages folder','This is not a packages folder! Please specify another folder and try again.')
 
-menu = tk.Menu(main,tearoff=False)
-fileMenu = tk.Menu(menu,tearoff=False)
+menu = tk.Menu(win,foreground=light,background=darkField,relief='flat')
+fileMenu = tk.Menu(menu,tearoff=False,foreground=light,background=darkField,relief='flat')
 fileMenu.add_command(label='Compile',command=generate)
 fileMenu.add_command(label='Add song', command=addToList)
 fileMenu.add_command(label='Set up BEE2 packages folder',command=askpath)
@@ -565,10 +734,15 @@ fileMenu.add_separator()
 fileMenu.add_command(label='Save',command=save)
 fileMenu.add_command(label='Load',command=loadFile)
 fileMenu.add_separator()
+
+fileMenu.add_checkbutton(label='Dark theme',variable=darkmode,command=reloadTheme,selectcolor='#FFFFFF')
+
+fileMenu.add_separator()
+
 fileMenu.add_command(label='Quit',command=sys.exit)
 menu.add_cascade(label='File',menu=fileMenu)
 
-openMenu = tk.Menu(menu,tearoff=False)
+openMenu = tk.Menu(menu,tearoff=False,relief='flat',foreground=light,background=darkField)
 openMenu.add_command(command=openDir,label='App directory')
 openMenu.add_command(command=discord,label='Discord server')
 menu.add_cascade(menu=openMenu,label='Open')
@@ -577,13 +751,59 @@ def changeSkip():
     prev.config(state=('disabled' if skipImg.get() else 'normal'))
 
 skipImg = tk.BooleanVar(main,False)
-largeImageSkip = tk.Checkbutton(trackdata,text="Use Image only",variable=skipImg,command=changeSkip)
+largeImageSkip = tk.Checkbutton(trackdata,text="Use Image only",variable=skipImg,command=changeSkip,background=dark,foreground=light,activebackground=dark,activeforeground=light,selectcolor=darkField)
 largeImageSkip.grid(row=0,column=3,padx=5,pady=5)
 
-main.config(menu=menu)
+win.config(menu=menu,relief='flat',background=dark)
 
-tk.Button(actions,text='Delete selected',command=delList).grid(row=0,column=1,padx=5,pady=5)
+tk.Button(actions,text='Delete selected',command=delList,relief='flat',background=darkField,foreground=light,activebackground=darkField,activeforeground=light).grid(row=0,column=1,padx=5,pady=5)
 
-tk.Button(actions,text='Compile',command=generate).grid(row=1,column=1,padx=5,pady=5)
+tk.Button(actions,text='Compile',command=generate,relief='flat',background=darkField,foreground=light,activebackground=darkField,activeforeground=light).grid(row=1,column=1,padx=5,pady=5)
+
+if len(sys.argv)==2:
+    with open(sys.argv[1]) as svf:
+        loadFile(svf)
+
+extra = tk.Frame(tabs,padx=5,pady=5)
+
+funnel = tk.LabelFrame(extra,text='Excursion funnel',labelanchor=tk.N)
+funnel.grid(row=0,column=0,padx=5,pady=5)
+
+def selFunnel():
+    file = fs.askopenfilename(defaultextension='wav',filetypes=[('Microsoft wave file','.wav .wave')],title='Open funnel music')
+    if file!=None:
+        reset(funnelFile,file)
+
+funnelFile = labelField(funnel,0,0,'Funnel music',True)
+
+funnelButton = tk.Button(funnel,image=file_ico,relief=tk.FLAT,command=selFunnel,foreground=darkField,state='disabled',disabledforeground=inactive)
+funnelButton.grid(row=1,column=1,padx=5,pady=5)
+
+def funnelChange():
+    syncCheckbox.config(state='normal' if enableFunnel.get() else 'disabled')
+    funnelButton.config(state='normal' if enableFunnel.get() else 'disabled')
+    funnelFile.config(state='normal' if enableFunnel.get() else 'disabled')
+
+def syncChange():
+    pass
+
+syncFunnel = tk.BooleanVar(main,False)
+enableFunnel = tk.BooleanVar(main,False)
+funnelCheckbox = tk.Checkbutton(funnel,text='Enable funnel music',variable=enableFunnel,background=dark,foreground=light,activebackground=dark,activeforeground=light,selectcolor=darkField,command=funnelChange)
+syncCheckbox = tk.Checkbutton(funnel,text='Sync funnel music',variable=syncFunnel,background=dark,foreground=light,activebackground=dark,activeforeground=light,selectcolor=darkField,state='disabled')
+
+funnelCheckbox.grid(row=2,column=0,padx=5,pady=1,columnspan=2)
+syncCheckbox.grid(row=3,column=0,padx=5,pady=1,columnspan=2)
+
+gels = tk.LabelFrame(extra,text='Gels',labelanchor='n')
+gels.grid(padx=5,pady=5,column=1,row=0)
+
+
+
+tabs.add(main,text='Data')
+tabs.add(extra,text='Extras')
+tabs.pack(side=tk.TOP)
+
+reloadTheme()
 
 tk.mainloop()
