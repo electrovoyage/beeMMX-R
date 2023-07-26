@@ -1,3 +1,4 @@
+import math
 import tkinter as tk
 from tkinter import messagebox as msg
 from tkinter import filedialog as fs
@@ -10,36 +11,62 @@ import sys
 import json
 import shutil
 import webbrowser as web
-from datetime import date as dt
+from datetime import date as dt, datetime as dtime
 import darkdetect as drk
+import scipy.io.wavfile as wave
+import gzip as gz
+import tktooltip as tip
+import configparser as cfg
+from discordrp import Presence
+import time
 
 if len(sys.argv)>1:
     os.chdir(os.path.dirname(sys.executable))
+
+for i in os.listdir(os.path.join(os.getcwd(),'logs')):
+    if os.path.splitext(os.getcwd()+'/logs/'+i)[1] == '.txt':
+        with open(os.path.join(os.getcwd(),'logs',i),'rb') as log, gz.open(os.path.join(os.getcwd(),'logs',i)+'.gz','wb') as gzip:
+            gzip.writelines(log)
+        os.remove(os.path.join(os.getcwd(),'logs',i))
 
 def openDir():
     web.open('file:///'+os.path.dirname(sys.executable))
 
 def Image(name):
-    return it.PhotoImage(img.open(os.getcwd()+'/media/missing.png') if (dt.today().day==1 and dt.today().month==4) or name.strip()=='' else (img.open(os.getcwd()+'/'+name)))
+    return it.PhotoImage(img.open(os.path.join(os.getcwd(),'media/missing.png')) if (dt.today().day==1 and dt.today().month==4) or name.strip()=='' else (img.open(os.getcwd()+'/'+name)))
 
 music = []
 
+os.makedirs(os.path.join(os.getcwd(),'logs'),exist_ok=True)
+
+fileList = os.listdir(os.path.join(os.getcwd(),'logs'))
+if len(fileList)>10:
+    for i in fileList:
+        try:
+            os.remove(os.path.join(os.getcwd(),'logs',i))
+        except PermissionError:
+            print('[Emptying log folder] Error: permission denied to file \'{}\'!'.format(i))
+del(fileList)
+
+sys.stdout = open(os.path.join(os.getcwd(),'logs',dtime.now().strftime('%d.%m.%Y_%H-%M-%S.txt')),'w')
+sys.stderr = sys.stdout
+
 class Style:
-    def __init__(self,name,id,authors,ui_name):
+    def __init__(self,name,id,authors,ui_name,vanilla):
         self.name = name
         self.id = id
         self.authors = authors
         self.ui_name = ui_name
+        self.vanilla = vanilla
 
 class gelData:
     def __init__(self,files:dict[tuple | str]):
         self.files = files
 
 class funnelData:
-    def __init__(self,file:str,sync:bool=False,used:bool=False):
+    def __init__(self,file:str,sync:bool=False):
         self.file=file
         self.sync=sync
-        self.used=used
 
 class Track:
     def __init__(self,ID:str,short_title:str,title:str,description:str,authors:str,length:str,image:str,preview:str,music:str,sample:str,group:str,key:str,style:Style,noLarge:bool,gels:gelData|None,funnel:funnelData|None):
@@ -61,24 +88,25 @@ class Track:
         self.funnel = funnel
 
 styles = {
-    'bts':Style('Behind The Scenes','BEE2_BTS','TeamSpen210',''),
-    'over':Style('Overgrown','BEE2_OVERGROWN','TeamSpen210',''),
-    'clean':Style('Clean','BEE2_CLEAN','Valve, Carl Kenner, TeamSpen210',''),
-    'original_clean':Style('Clean (Original Textures)','BEE2_CLEAN_ORIGINAL','Valve','Original Clean'),
-    'grass_clean':Style('Grass Clean','BEE2_GRASS_CLEAN','joethegamer',"joethegamer's Grass Clean"),
-    'hybrid':Style('Hybrid','AXO_HYBRID','Valve, Axo',"Axo's Hybrid"),
-    'p1':Style('Portal 1 Style','BEE2_PORTAL_1','Carl Kenner, TeamSpen210, Valve','Portal 1'),
-    'cave':Style('Deep Cave','DDS_CAVE_STYLE','Drgregs',"Drgregs' Deep Cave"),
-    'rocky':Style('Rocky Cave','SUBSTYLE_CAVE_STYLE','Drgregs',"Drgregs' Rocky Cave"),
-    'dev':Style('Developer Style','DDS_DEV_STYLE','Drgregs',"Drgregs' Developer"),
-    'gray':Style('Solid Gray Dev','SUBSTYLE_DEV_STYLE','Drgregs',"Drgregs' Solid Gray Developer"),
-    'gmod':Style("Garry's Mod Style",'DDS_GMOD_STYLE','Facepunch, Drgregs',"Drgregs' GMod"),
-    'floor':Style('Unpolished Floor','SUBSTYLE_GMOD_STYLE','Facepunch, Drgregs',"Drgregs' Unpolished Floor"),
-    '50s':Style('1950s Old Aperture','BEE2_1950s','Carl Kenner, TeamSpen210, Critfish','1950s'),
-    '60s':Style('1960s Old Aperture','BEE2_1960s','Carl Kenner, TeamSpen210, Critfish','1960s'),
-    '70s':Style('1970s Old Aperture','BEE2_1970s','Carl Kenner, TeamSpen210','1970s'),
-    '80s':Style('1980s Old Aperture','BEE2_1980s','Carl Kenner, TeamSpen210','1980s'),
-    'none':Style('','','','None')
+    'bts':Style('Behind The Scenes','BEE2_BTS','TeamSpen210','',False),
+    'over':Style('Overgrown','BEE2_OVERGROWN','TeamSpen210','',True),
+    'clean':Style('Clean','BEE2_CLEAN','Valve, Carl Kenner, TeamSpen210','',True),
+    'original_clean':Style('Clean (Original Textures)','BEE2_CLEAN_ORIGINAL','Valve','Original Clean',True),
+    'grass_clean':Style('Grass Clean','BEE2_GRASS_CLEAN','joethegamer',"joethegamer's Grass Clean",False),
+    'hybrid':Style('Hybrid','AXO_HYBRID','Valve, Axo',"Axo's Hybrid",False),
+    'p1':Style('Portal 1 Style','BEE2_PORTAL_1','Carl Kenner, TeamSpen210, Valve','Portal 1',True),
+    'cave':Style('Deep Cave','DDS_CAVE_STYLE','Drgregs',"Drgregs' Deep Cave",False),
+    'rocky':Style('Rocky Cave','SUBSTYLE_CAVE_STYLE','Drgregs',"Drgregs' Rocky Cave",False),
+    'dev':Style('Developer Style','DDS_DEV_STYLE','Drgregs',"Drgregs' Developer",False),
+    'gray':Style('Solid Gray Dev','SUBSTYLE_DEV_STYLE','Drgregs',"Drgregs' Solid Gray Developer",False),
+    'gmod':Style("Garry's Mod Style",'DDS_GMOD_STYLE','Facepunch, Drgregs',"Drgregs' GMod",False),
+    'floor':Style('Unpolished Floor','SUBSTYLE_GMOD_STYLE','Facepunch, Drgregs',"Drgregs' Unpolished Floor",False),
+    '50s':Style('1950s Old Aperture','BEE2_1950s','Carl Kenner, TeamSpen210, Critfish','1950s',True),
+    '60s':Style('1960s Old Aperture','BEE2_1960s','Carl Kenner, TeamSpen210, Critfish','1960s',True),
+    '70s':Style('1970s Old Aperture','BEE2_1970s','Carl Kenner, TeamSpen210','1970s',True),
+    '80s':Style('1980s Old Aperture','BEE2_1980s','Carl Kenner, TeamSpen210','1980s',True),
+    'twtm':Style('TWTM Style','TWTM_STYLE_PACK:TWTM','Stridemann, Catperson6, Super 82533, Darealxbox','Catperson6\'s TWTM',False),
+    'none':Style('','','','None',True)
 }
 
 styleNames = []
@@ -88,25 +116,34 @@ for i in styles:
     else:
         styleNames.append(styles[i].ui_name)
 
-def label(win,column,row,text):
-    tk.Label(win,text=text,foreground=light,background=dark).grid(column=column,row=row,padx=5)
+def label(window,column,row,text):
+    tk.Label(window,text=text,foreground=light,background=dark).grid(column=column,row=row,padx=5)
 
-def field(win,column,row,off=False):
-    fld = tk.Entry(win,foreground=light,background=darkField,relief='flat',disabledbackground=inactive,disabledforeground=darkField,state= 'disabled' if off else 'normal')
-    fld.grid(column=column,row=row,padx=5,pady=5)
+def field(window,column,row,off=False):
+    fld = tk.Entry(window,foreground=light,background=darkField,relief='flat',disabledbackground=inactive,disabledforeground=darkField,state= 'disabled' if off else 'normal')
+    fld.grid(column=column,row=row,padx=5)
     return fld
 
-def labelField(win,col,row,text,startInactive=False):
-    label(win,col,row,text)
-    fld = field(win,col,row+1,startInactive)
+def labelField(window,col,row,text,startInactive=False):
+    """Constructs a labelled text field.\n
+    \n
+    window - a LabelFrame, Frame or Master object. The objects will be placed there.\n
+    col - column in which both objects will be in.
+    row - row of the Label. The Entry will be one row lower.\n
+    text - the Label's content.\n
+    startInactive - whether the Entry should start disabled.
+    """
+    label(window,col,row,text)
+    fld = field(window,col,row+1,startInactive)
     return fld
 
 win = tk.Tk()
 
 darkmode = tk.BooleanVar(win,drk.isDark())
 
-global dark, light, darkField, inactive
+global dark, light, darkField, inactive, darkTip
 
+darkTip = '#222244' if darkmode.get() else '#CCCCCC'
 dark = '#111133' if darkmode.get() else None
 light = '#FFFFFF' if darkmode.get() else None
 darkField = '#333355' if darkmode.get() else '#FFFFFF'
@@ -114,8 +151,11 @@ inactive = '#202030' if darkmode.get() else '#DDDDDD'
 
 def reloadTheme():
 
-    global dark, light, darkField, inactive
+    print('[Theme refresh] Reload triggered! Intitiating theme reload functions...')
 
+    global dark, light, darkField, inactive, darkTip
+
+    darkTip = '#222244' if darkmode.get() else '#F5F5F5'
     dark = '#111133' if darkmode.get() else '#EEEEEE'
     light = '#FFFFFF' if darkmode.get() else '#000000'
     darkField = '#333355' if darkmode.get() else '#FFFFFF'
@@ -123,8 +163,7 @@ def reloadTheme():
 
     for i in main.winfo_children():
         for f in i.winfo_children():
-            if type(f)!=type(ttk.Combobox()):
-                print(f,type(f),sep=' | ')
+            if type(f)!=ttk.Combobox:
                 match type(f):
                     case tk.Entry:
                         f.configure(foreground=light,background=darkField,relief='flat',disabledbackground=inactive,disabledforeground=darkField)
@@ -135,13 +174,18 @@ def reloadTheme():
                     case tk.Label:
                         f.config(background=dark,foreground=light)
                     case tk.Button:
-                        f.config(background=darkField,foreground=light)
+                        f.config(background=darkField,foreground=light,activebackground=darkField,activeforeground=light,disabledforeground=inactive)
                     case tk.Spinbox:
                         f.config(foreground=light,background=darkField,buttonbackground=dark)
+                print('[Theme refresh] Object ',i.winfo_children().index(f)+1,'/',len(i.winfo_children()),' refreshed!',sep='')
         if type(i)==tk.LabelFrame:
             i.configure(background=dark,foreground=light)
+        print('[Theme refresh] Frame ',main.winfo_children().index(i)+1,'/',len(main.winfo_children()),' refreshed!',sep='')
     main.config(bg=dark)
     extra.config(bg=dark)
+
+    #for i in tips:
+    #    pass
 
     #for i in extra.winfo_children():
     #    for f in i.winfo_children():
@@ -165,10 +209,11 @@ def reloadTheme():
     #    if type(i)==tk.LabelFrame:
     #        i.configure(background=dark,foreground=light)
 
+    print('[Theme refresh] Refreshing Extras tab...')
+
     for i in extra.winfo_children():
         i.config(background=dark,foreground=light)
         for g in i.winfo_children():
-            print(str(type(g)))
             match type(g):
                 case tk.Checkbutton:
                     g.config(background=dark,foreground=light,activebackground=dark,activeforeground=light,selectcolor=darkField)
@@ -178,24 +223,90 @@ def reloadTheme():
                     g.config(background=dark,foreground=light)
                 case tk.Entry:
                     g.configure(foreground=light,background=darkField,relief='flat',disabledforeground=darkField,disabledbackground=inactive)
+                case tk.LabelFrame:
+                    g.config(background=dark,foreground=light)
+                    for f in g.winfo_children():
+                        match type(f):
+                            case tk.Listbox:
+                                f.config(relief='flat',background=darkField,foreground=light)
+                            case tk.Scrollbar:
+                                f.config()
                 case _:
                     print(str(type(g))+' failed! [line 164]')
+            print('[Theme refresh] Object ',i.winfo_children().index(g)+1,'/',len(i.winfo_children()),' refreshed!',sep='')
+        print('[Theme refresh] Frame ',extra.winfo_children().index(i)+1,'/',len(extra.winfo_children()),' refresh completed!',sep='')
 
     win.config(background=dark)
 
     fileMenu.config(background=darkField,foreground=light)
     openMenu.config(background=darkField,foreground=light)
     menu.config(background=darkField,foreground=light)
+
+    refreshTips()
     
     for i in menu.winfo_children():
         f.config(background=darkField,foreground=light)
+    
+    print('Theme setup done!')
 
 tabs = ttk.Notebook(win)
+
+startTime = tk.IntVar(win,int(time.time()))
+
+# discord application ID of 'beeMMX R', which is used for rich presence
+discord_APPID = '1132691764755578910'
+with Presence(discord_APPID) as rpc:
+    rpc.set(
+        {
+            'state':'Editing a package',
+            'details':'File: none',
+            'timestamps':{'start':startTime.get()},
+            'assets':{
+                'large-image':'beemmx_r',
+                'large_text': 'beeMMX R is a tool which generates music packages for BEE2. Learn more by clicking the GitHub button.'
+            },
+            'buttons':[
+                {
+                    'url':'https://github.com/TPEcool/beeMMX-R',
+                    'label': 'beeMMX R on GitHub'
+                },
+                {
+                    'url':'https://discord.gg/gb7cp6asJF',
+                    'label':'Discord server'
+                }
+            ]
+        }
+    )
+
+def setPresence(filename:str | None):
+    startTime.set(int(time.set()))
+    with Presence(discord_APPID) as rpc:
+        rpc.set(
+            {
+                'state':'Editing a package',
+                'details':'File: '+('none' if filename is None else '\''+os.path.basename(filename)+'\''),
+                'timestamps':{'start':startTime.get()},
+                'assets':{
+                    'large-image':'beemmx_r',
+                    'large_text': 'beeMMX R is a tool which generates music packages for BEE2. Learn more by clicking the GitHub button.'
+                },
+                'buttons':[
+                {
+                    'url':'https://github.com/TPEcool/beeMMX-R',
+                    'label': 'beeMMX R on GitHub'
+                },
+                {
+                    'url':'https://discord.gg/gb7cp6asJF',
+                    'label':'Discord server'
+                }
+            ]
+            }
+        )
 
 main = tk.Frame(tabs,background=dark)
 main.pack(side=tk.BOTTOM,fill=tk.BOTH)
 
-win.iconbitmap(os.getcwd()+'/media/icon.ico')
+win.iconbitmap(os.path.join(os.getcwd(),'media','icon.ico'))
 win.resizable(False,False)
 win.title('beeMMX R')
 
@@ -282,6 +393,14 @@ photo  = labelField(trackmedia,2,0,'Image (4:3)')
 samp = labelField(trackmedia,4,0,'Sample (10 secs)')
 trac = labelField(trackmedia,6,0,'Track')
 
+def sec(num:int) -> str:
+    if len(str(num))==2:
+        return str(num)
+    elif len(str(num))==1:
+        return '0'+str(num)
+    else:
+        raise Exception('Failed to format seconds: too long input number!')
+
 def preview():
     shift = kb.is_pressed('shift')
     file = fs.askopenfile(defaultextension='.png',initialfile='image.png',title='Specify preview file',filetypes=[('PNG image','.png')])
@@ -314,13 +433,41 @@ def sample():
         else:
             msg.showerror('Music file too long','The selected music file is too long! Music samples must be 10 seconds long or less! Hold SHIFT while clicking the button to dismiss this warning.')
 
+def testWaveFile(filename:str = '') -> bool:
+
+    '''
+    Test a WAVE file for Portal 2 compatibility.\n
+    Returns true if compatible, makes a dialogue box and returns False otherwise.\n\n
+    filename - the name of the file to test.
+    '''
+
+    formats = {
+        'float32':'32-bit floating-point',
+        'int32':'32-bit or 24-bit integer PCM',
+        'uint8':'8-bit integer PCM',
+        'int16':'16-bit integer PCM'
+    }
+    global fileformat, fileformat
+
+    fileformat = formats[str(wave.read(filename)[1].dtype)]
+
+    if wave.read(filename)[0] == 44100:
+        if str(wave.read(filename)[1].dtype) == 'int16':
+            return True
+        else:
+            msg.showerror('Incorrect sample format',f'The file has an incorrect sample format! Expected 16-bit integer PCM, read {fileformat}. This file will crash Portal 2 and therefore was not imported.')
+            return False
+    else:
+        msg.showerror('Incorrect sample rate','The file has an incorrect sample rate! Expected 44100 hertz, read {}. This file will crash Portal 2\'s sound engine and therefore was not imported.'.format(str(wave.read(filename)[1].dtype)))
+        return False
+
 def track():
-    file = fs.askopenfile(defaultextension='.wav',initialfile='music.wav',title='Specify track file',filetypes=[('Microsoft WAVE music','.wav .wave')])
-    if file is not None:
+    file = fs.askopenfilename(defaultextension='.wav',initialfile='music.wav',title='Specify track file',filetypes=[('Microsoft WAVE music','.wav .wave')])
+    if file is not None and testWaveFile(file):
         trac.delete(0,tk.END)
-        trac.insert(tk.END,file.name)
+        trac.insert(tk.END,file)
         tLen.delete(0,tk.END)
-        tLen.insert(tk.END,str(int(mg.File(file.name).info.length//60))+':'+str(int(mg.File(file.name).info.length%60)))
+        tLen.insert(tk.END,str(int(mg.File(file).info.length//60))+':'+sec(math.ceil(mg.File(file).info.length%60)))
 
 tk.Button(trackmedia,image=file_ico,command=preview,foreground=light,background=darkField,relief='flat').grid(row=1,column=1,padx=5,pady=5)
 tk.Button(trackmedia,image=file_ico,command=phot,foreground=light,background=darkField,relief='flat').grid(row=1,column=3,padx=5,pady=5)
@@ -365,6 +512,24 @@ def resetFields():
     reset(samp,'')
     reset(group,'')
     reset(sortKey,str(len(music)+1))
+    reset(funnelFile,'')
+
+def genGelData():
+    result = {
+        'blue':'',
+        'orange':''
+    }
+    if len(blueGelBox.get(0,tk.END)) == 1:
+        result['blue'] = blueGelBox.get(0,tk.END)[0]
+    else:
+        result['blue'] = tuple(blueGelBox.get(0,tk.END))
+    
+    if len(orangeGelBox.get(0,tk.END)) == 1:
+        result['orange'] = orangeGelBox.get(0,tk.END)[0]
+    else:
+        result['orange'] = tuple(orangeGelBox.get(0,tk.END))
+
+    return result
         
 def addToList():
     if tID.get().strip()!='':
@@ -380,12 +545,17 @@ def addToList():
                     if tID.get()!='Package':
                         try:
                             int(sortKey.get())
-                            music.append(Track(tID.get(),shortName.get(),title.get(),desc.get(),authors.get(),-1 if loopvar.get() else (tLen.get()),photo.get(),prev.get(),trac.get(),samp.get(),group.get(),sortKey.get(),style=styles[tuple(styles.keys())[styleNames.index(stylevar.get())]], noLarge=skipImg.get()))
-                            tracklist.insert(tk.END,tID.get())
-
-                            resetFields()
                         except:
                             msg.showerror('Not a number','Sort key must be a number! No operations have been performed.')
+                        finally:
+                            if tID.get().upper() == tID.get():
+                                msg.showwarning('ID not uppercase','The ID of this track is not all-uppercase. This means it doesn\'t follow the style of the official packages. The track will still be added.')
+                            if ('_' in tID.get() or '-'  in tID.get()) and not kb.is_pressed('shift'):
+                                msg.showwarning('Underscore or hyphen in ID','The ID field has a hyphen or underscore. This means that you may have tried to add a prefix via the ID field. A prefix can be defined in the prefix field. The track will still be added.\nHold SHIFT when adding a song to dismiss this warning.')
+                            music.append(Track(tID.get(),shortName.get(),title.get(),desc.get(),authors.get(),-1 if loopvar.get() else tLen.get(),photo.get(),prev.get(),trac.get(),samp.get(),group.get(),sortKey.get(),style=styles[tuple(styles.keys())[styleNames.index(stylevar.get())]], noLarge=skipImg.get(),gels=genGelData(),funnel=funnelData(funnelFile.get(),syncFunnel.get()) if enableFunnel.get() else None))
+                            tracklist.insert(tk.END,tID.get())
+                                             
+                            resetFields()
                     else:
                         msg.showerror("Invalid ID','The ID you entered is invalid! Please do not name your song IDs 'Package', as this will break the saving/loading functions.")
                 else:
@@ -451,10 +621,10 @@ actions = tk.LabelFrame(main,text='Actions',labelanchor='n',background=dark,fore
 actions.grid(row=1,column=0,padx=5,pady=5)
 
 add = tk.Button(actions,text='Add',command=addToList,background=darkField,foreground=light,relief='flat',activebackground=darkField,activeforeground=light)
-add.grid(row=0,column=0,padx=10,pady=10)
+add.grid(row=0,column=0,padx=10,pady=10,ipadx=25)
 
 load = tk.Button(actions,text='Load selected',command=opn,background=darkField,foreground=light,relief='flat',activebackground=darkField,activeforeground=light)
-load.grid(row=1,column=0,padx=10,pady=10)
+load.grid(row=1,column=0,padx=10,pady=10,)
 
 tracks = tk.LabelFrame(main,text='Your tracks',labelanchor='n',background=dark,foreground=light)
 tracks.grid(row=0,column=2,padx=5,pady=5,rowspan=2,ipady=100)
@@ -499,7 +669,26 @@ def generate():
         zipfile = fs.asksaveasfilename(initialfile=str.lower(packid.get())+'.bee_pack',confirmoverwrite=True,filetypes=[('BEE2.4 package file','.bee_pack')],title='Compile package',initialdir=(None if beepath=='' else beepath))
         if zipfile!='':
 
+            global customstyles,stylepacks
+            customstyles = ''
+            stylepacks = {
+                'twtm':'Catperson6\'s TWTM style\n',
+                'bts': 'BTS style package or old BEE2\n',
+                'grass_clean':'joethegamer\'s Grass Clean style\n',
+                'hybrid':'Axo\'s Hybrid style\n',
+                'cave' or 'rocky' or 'dev' or 'gray' or 'gmod' or 'floor':'Drgregs Dumb Styles\n'
+            }
+
+            if not kb.is_pressed('shift'):
+                for i in music:
+                    if not i.style.vanilla and ('Drgregs Dumb Styles' if 'Drgregs' in i.style.authors else 'Catperson6\'s TWTM style') not in customstyles:
+                        customstyles += i.style.ui_name if i.style.ui_name != '' else i.style.name
+                if customstyles!='':
+                    msg.showwarning('UCP styles',f'Your package uses custom styles. You will need the following packages for your package to work:\n{customstyles}\nYou can hold SHIFT when clicking Compile to skip this dialog box.')
+
             os.makedirs(os.getcwd()+'/temp',exist_ok=True)
+
+            print(customstyles)
 
             with open(os.getcwd()+'/temp/info.txt','w') as inf:
 
@@ -619,13 +808,25 @@ def generate():
 
         del(allNone,noneStyled)
 
-def save():
+prevFile = tk.StringVar(win,'')
+
+def save(asFile:bool = False):
 
     if len(music)!=0:
+        
+        if prevFile.get() != '' or asFile:
+            file = fs.asksaveasfilename(defaultextension='.bxs',filetypes=[('beeMMX R save file','.bxs .beemmx .bxsave')],initialfile=packid.get()+'.bxs',title='Save beeMMX R project file')
+        else:
+            file = prevFile.get()
 
-        file = fs.asksaveasfile(defaultextension='.bxs',filetypes=[('beeMMX R save file','.bxs .beemmx .bxsave')],initialfile=packid.get()+'.bxs',title='Save beeMMX R project file')
 
         if file!=None:
+
+            setPresence(file)
+
+            prevFile.set(file)
+            
+            fileMenu.activate(5)
 
             savedata = {
                 'Package':{
@@ -651,15 +852,37 @@ def save():
                     'Loop_length':i.length,
                     'NoLoop':i.length==-1,
                     'NoSmall':i.preview==-1,
-                    'Style':tuple(styles.keys())[styleNames.index(stylevar.get())]
+                    'Style':tuple(styles.keys())[styleNames.index(stylevar.get())],
+                    'Funnel':i.funnel,
+                    'Gels':i.gels
                 }})
 
-            jsonData = json.dumps(savedata,indent=4)
+            #json.dump(savedata,file,indent=4)
 
-            file.write(jsonData)
+            with open(file,'w') as fileIO:
+                dumpSaveData(savedata,fileIO)
 
-        else:
-            msg.showerror('No music','There is no music in the package! The save operation has been cancelled.')    
+    else:
+        msg.showerror('No music','There is no music in the package! The save operation has been cancelled.')    
+
+def dumpSaveData(savedata:dict,file):
+    parser = cfg.ConfigParser()
+
+    for section in savedata.keys():
+        parser.add_section(enc(section))
+
+        fields = savedata[section].keys()
+        for field in fields:
+            val = savedata[section][field]
+            parser.set(enc(section), enc(field), enc(str(val)))
+
+    parser.write(file); file.close()
+
+def enc(obj:str) -> str:
+    '''
+    Escape all unescaped Unicode characters in the string.
+    '''
+    return obj.encode('unicode-escape').decode()
 
 def isLegacy(data: list[str]=['']):
     isLegacyFile = True
@@ -672,7 +895,7 @@ def isLegacy(data: list[str]=['']):
 def loadFile(fileIn=None):
     
     if fileIn==None:
-        file = fs.askopenfilename(defaultextension='.bxs',filetypes=[('beeMMX R save file','.bxs .beemmx .bxsave')],title='Load beeMMX R project file')
+        file = fs.askopenfile(defaultextension='.bxs',filetypes=[('beeMMX R save file','.bxs .beemmx .bxsave')],title='Load beeMMX R project file')
     else:
         file=fileIn
 
@@ -683,7 +906,13 @@ def loadFile(fileIn=None):
             ask = True
 
         if ask:
-                
+
+            prevFile.set(file.name)
+
+            fileMenu.activate(5)
+
+            setPresence(file.name)
+            
             legacy = isLegacy(file.readlines())
 
             if legacy:
@@ -716,23 +945,51 @@ def check(container: tuple | list | dict, index):
 
 def askpath():
     pth = fs.askdirectory(mustexist=True,title='Select BEE2 packages folder')
-    if pth!=None:
+    if pth!='':
         if os.path.basename(pth)=='packages':
             beepath.set(pth)
             with open(os.getcwd()+'/bee2_path.txt',mode='w') as path:
                 path.write(beepath.get())
                 path.close()
         else:
-            msg.showerror('Not a packages folder','This is not a packages folder! Please specify another folder and try again.')
+            msg.showerror('Not a packages folder','This is not a packages folder! Please specify another folder.')
+
+def save_as():
+    save(True)
+
+def save_key():
+    if prevFile.get() != '':
+        save()
+
+kb.add_hotkey('ctrl+shift+s',save_as)
+kb.add_hotkey('ctrl+s',save_key)
+
+def new():
+    if msg.askyesno('Start a new project?','Are you sure you want to start a new project? You will lose any unsaved changes to the previous file.') == tk.YES:
+        prevFile.set(''); fileMenu.entryconfig('New',state=tk.DISABLED); resetFields()
+        setPresence(None)
 
 menu = tk.Menu(win,foreground=light,background=darkField,relief='flat')
 fileMenu = tk.Menu(menu,tearoff=False,foreground=light,background=darkField,relief='flat')
-fileMenu.add_command(label='Compile',command=generate)
+fileMenu.add_command(label='New',command = new)
+fileMenu.add_command(label='Compile',command=generate,accelerator='Ctrl + G')
+kb.add_hotkey('ctrl+g',generate)
 fileMenu.add_command(label='Add song', command=addToList)
 fileMenu.add_command(label='Set up BEE2 packages folder',command=askpath)
 fileMenu.add_separator()
-fileMenu.add_command(label='Save',command=save)
+fileMenu.add_command(label='Save as...',command=save_as, accelerator = 'Ctrl + Shift + S')
+fileMenu.add_command(label='Save',command=save,accelerator='Ctrl + S',state=tk.DISABLED)
 fileMenu.add_command(label='Load',command=loadFile)
+fileMenu.add_separator()
+
+def clear():
+    print('Deleting log files...')
+    files = os.listdir(os.path.join(os.getcwd(),'logs'))
+    for i in range(len(files)):
+        os.remove(os.path.join(os.getcwd(),'logs',files[i]))
+        print('File {}/{} deleted!'.format(i,len(files)))
+
+fileMenu.add_command(label='Clear log folder',command=clear)
 fileMenu.add_separator()
 
 fileMenu.add_checkbutton(label='Dark theme',variable=darkmode,command=reloadTheme,selectcolor='#FFFFFF')
@@ -756,9 +1013,11 @@ largeImageSkip.grid(row=0,column=3,padx=5,pady=5)
 
 win.config(menu=menu,relief='flat',background=dark)
 
-tk.Button(actions,text='Delete selected',command=delList,relief='flat',background=darkField,foreground=light,activebackground=darkField,activeforeground=light).grid(row=0,column=1,padx=5,pady=5)
+delBtn = tk.Button(actions,text='Delete selected',command=delList,relief='flat',background=darkField,foreground=light,activebackground=darkField,activeforeground=light)
+delBtn.grid(row=0,column=1,padx=5,pady=5)
 
-tk.Button(actions,text='Compile',command=generate,relief='flat',background=darkField,foreground=light,activebackground=darkField,activeforeground=light).grid(row=1,column=1,padx=5,pady=5)
+compileBtn = tk.Button(actions,text='Compile',command=generate,relief='flat',background=darkField,foreground=light,activebackground=darkField,activeforeground=light)
+compileBtn.grid(row=1,column=1,padx=5,pady=5,ipadx=16)
 
 if len(sys.argv)==2:
     with open(sys.argv[1]) as svf:
@@ -772,7 +1031,8 @@ funnel.grid(row=0,column=0,padx=5,pady=5)
 def selFunnel():
     file = fs.askopenfilename(defaultextension='wav',filetypes=[('Microsoft wave file','.wav .wave')],title='Open funnel music')
     if file!=None:
-        reset(funnelFile,file)
+        if testWaveFile(file):
+            reset(funnelFile,file)
 
 funnelFile = labelField(funnel,0,0,'Funnel music',True)
 
@@ -783,9 +1043,6 @@ def funnelChange():
     syncCheckbox.config(state='normal' if enableFunnel.get() else 'disabled')
     funnelButton.config(state='normal' if enableFunnel.get() else 'disabled')
     funnelFile.config(state='normal' if enableFunnel.get() else 'disabled')
-
-def syncChange():
-    pass
 
 syncFunnel = tk.BooleanVar(main,False)
 enableFunnel = tk.BooleanVar(main,False)
@@ -798,11 +1055,160 @@ syncCheckbox.grid(row=3,column=0,padx=5,pady=1,columnspan=2)
 gels = tk.LabelFrame(extra,text='Gels',labelanchor='n')
 gels.grid(padx=5,pady=5,column=1,row=0)
 
+bluegelframe = tk.LabelFrame(gels,labelanchor=tk.N,text='Repulsion gel',padx=5,pady=5)
+bluegelframe.grid(row=0,column=0,padx=5,pady=5,columnspan=2,rowspan=5)
 
+bluegelscroll = tk.Scrollbar(bluegelframe,orient=tk.VERTICAL)
+bluegelscroll.pack(side=tk.RIGHT,expand=True,fill=tk.Y)
+
+bluegelxscroll = tk.Scrollbar(bluegelframe,orient=tk.HORIZONTAL)
+bluegelxscroll.pack(side=tk.BOTTOM,expand=True,fill=tk.X)
+
+blueGelBox = tk.Listbox(bluegelframe,selectmode=tk.SINGLE,yscrollcommand=bluegelscroll.set,xscrollcommand=bluegelxscroll.set)
+blueGelBox.pack(side=tk.LEFT,expand=True,fill=tk.BOTH)
+
+bluegelscroll.config(command=blueGelBox.yview)
+bluegelxscroll.config(command=blueGelBox.xview)
+
+def addBlueGel():
+    formats = {
+        'float32':'32-bit floating-point',
+        'int32':'32-bit or 24-bit integer PCM',
+        'uint8':'8-bit integer PCM',
+        'int16':'16-bit integer PCM'
+    }
+    global sampleformat
+    if bluefile.get().strip() != '':
+        if os.path.exists(bluefile.get()):
+            sampleformat = formats[str(wave.read(bluefile.get())[1].dtype)]
+            if wave.read(bluefile.get())[0] == 44100:
+                if wave.read(bluefile.get())[1].dtype == 'int16':
+                    blueGelBox.insert(tk.END,bluefile.get())
+                    reset(bluefile,'')
+                else:
+                    msg.showerror('Invalid sample format',"Invalid sample format in specified file! Read {sampleformat} instead of 16-bit integer PCM. This file will crash Portal 2 and therefore was not imported.")
+            else:
+                msg.showerror('Invalid sample rate',"The specified file's sample rate is not 44100 hertz! This file will crash Portal 2's sound engine and therefore was not imported.")
+        else:
+            msg.showerror('Invalid filename','The entered filename does not exist! Please specify a valid file and try again.')
+    else:
+        msg.showerror('Empty filename','No filename specified in the field! Please enter a filename and try again.')
+    del(formats)
+
+def addOrangeGel():
+    formats = {
+        'float32':'32-bit floating-point',
+        'int32':'32-bit or 24-bit integer PCM',
+        'uint8':'8-bit integer PCM',
+        'int16':'16-bit integer PCM'
+    }
+    global sampleformat
+    if bluefile.get().strip() != '':
+        if os.path.exists(bluefile.get()):
+            sampleformat = formats[str(wave.read(bluefile.get())[1].dtype)]
+            if wave.read(bluefile.get())[0] == 44100:
+                if wave.read(bluefile.get())[1].dtype == 'int16':
+                    orangeGelBox.insert(tk.END,bluefile.get())
+                    reset(bluefile,'')
+                else:
+                    msg.showerror('Invalid sample format',"Invalid sample format in specified file! Read {sampleformat} instead of 16-bit integer PCM. This file will crash Portal 2 and therefore was not imported.")
+            else:
+                msg.showerror('Invalid sample rate',"The specified file's sample rate is not 44100 hertz! This file will crash Portal 2's sound engine and therefore was not imported.")
+        else:
+            msg.showerror('Invalid filename','The entered filename does not exist! Please specify a valid file and try again.')
+    else:
+        msg.showerror('Empty filename','No filename specified in the field! Please enter a filename and try again.')
+    del(sampleformat)
+    del(formats)
+
+
+def selectGel():
+    file = fs.askopenfilename(title='Add repulsion gel music',filetypes=[('Microsoft WAVE file','.wav .wave')])
+    if file!=None:
+        reset(bluefile,file)
+
+bluefile = labelField(gels,0,5,'Filename')
+tk.Button(gels,image=file_ico,relief=tk.FLAT,command=selectGel).grid(row=6,column=1,padx=5,pady=5)
 
 tabs.add(main,text='Data')
 tabs.add(extra,text='Extras')
 tabs.pack(side=tk.TOP)
+
+addIcons = {
+    'blue': Image('media/blue.png'),
+    'orange': Image('media/orange.png'),
+    'remove': Image('media/remove.png'),
+    'help': Image('media/help.png')
+}
+
+orangeFrame = tk.LabelFrame(gels,labelanchor=tk.N,text='Propulsion gel')
+
+orangescroll = tk.Scrollbar(orangeFrame,orient=tk.VERTICAL)
+orangescroll.pack(expand=True,fill=tk.Y,side=tk.RIGHT)
+
+orangexscroll = tk.Scrollbar(orangeFrame,orient=tk.HORIZONTAL)
+orangexscroll.pack(expand=True,fill=tk.X,side=tk.BOTTOM)
+
+orangeGelBox = tk.Listbox(orangeFrame,selectmode=tk.SINGLE,yscrollcommand=orangescroll.set,xscrollcommand=orangexscroll.set)
+orangeGelBox.pack(side=tk.TOP,expand=True,fill=tk.BOTH)
+
+orangescroll.config(command=orangeGelBox.yview)
+orangexscroll.config(command=orangeGelBox.xview)
+
+orangeFrame.grid(row=0,column=4,padx=5,pady=5)
+
+def removeGelection():
+    if len(orangeGelBox.curselection())>0:
+        orangeGelBox.remove(orangeGelBox.curselection()[0])
+    elif len(blueGelBox.curselection())>0:
+        blueGelBox.remove(blueGelBox.curselection()[0])
+    else:
+        msg.showerror('No selection','There is no selection in either the repulsion or propulsion gel box. Please select something and try again.')
+
+def gelHelp():
+    web.open('https://github.com')
+
+tk.Button(gels,image=addIcons['blue'],relief=tk.FLAT,command=addBlueGel).grid(row=6,column=2,padx=5,pady=5)
+tk.Button(gels,image=addIcons['orange'],relief=tk.FLAT,command=addOrangeGel).grid(row=5,column=2,padx=5,pady=5)
+tk.Button(gels,image=addIcons['remove'],relief=tk.FLAT,command=removeGelection).grid(row=5,column=1,padx=5,pady=5)
+tk.Button(gels,image=addIcons['help'],relief=tk.FLAT,command=gelHelp).grid(row=6,column=3,padx=5,pady=5)
+
+win.focus_set()
+
+tips = {
+    'key':tip.ToolTip(sortKey,'Position of this track in the Group.'),
+    'group':tip.ToolTip(group,'Which part of the music picker window this song will be under. Will be created if it doesn\'t exist.'),
+    'style':tip.ToolTip(style, 'If the current pallete\'s style is set to this value, suggest this track. If None, don\'t generate suggestions for this track.'),
+    'packid':tip.ToolTip(packid,'The internal ID of the package, used by BEE2. Usually written as "PREFIX_NAME", where PREFIX is usually the author\'s name and NAME is a shortened name of the package, for example "VALVE_STILLALIVE_REMIXES" is a good ID for a package which adds several remixes of Still Alive, originally made by Valve.'),
+    'trackfile':tip.ToolTip(trac,'Filename of the full track. Must be a 44100 hertz, 16-bit PCM WAV file.'),
+    'sample':tip.ToolTip(samp,'The filename of a 10-second long OGG or WAV file (limitations of full files don\'t apply) to be used when clicking the play button.'),
+    'preview':tip.ToolTip(prev,'The filename of a square PNG image used as the small icon when browsing for tracks. Usually a part of the full image.'),
+    'packdesc':tip.ToolTip(packdesc,'The description of the package in BEE2\'s package manager.'),
+    'prefix':tip.ToolTip(prefix,'The prefix for all track IDs. Used to prevent ID conflicts with official or other packages. Applied as "PREFIX_ID".'),
+    'packname':tip.ToolTip(packtitle,'The name of this package in BEE2\'s package manager.'),
+    'image':tip.ToolTip(photo,'A PNG 4:3 image displayed on the right of the music picker window after a track has been selected. Usually 256x192 pixels large.'),
+    'tracklist':tip.ToolTip(tracklist,'See a readout of your tracks by their IDs here.'),
+    'id':tip.ToolTip(tID,'BEE2\'s internal ID for this song.'),
+    'title':tip.ToolTip(title,'The GUI name of this track.'),
+    'imgskip':tip.ToolTip(largeImageSkip,'Don\'t use a small image for this track. BEE2 will automatically cut the image to turn the large image into a small one.'),
+    'noloop':tip.ToolTip(dontLoop,'Disable looping this track by removing the \'Loop_len\' property from the info.txt file.'),
+    'shortname':tip.ToolTip(shortName,'If the tracks\' name is longer than 20 characters, enter a shortened version of the regular name. Otherwise, enter the normal name. E.g. ""Welcome To The Future" -> "Welcome Future".'),
+    'authors':tip.ToolTip(authors,'The author(-s) of this track. BEE2 will automatically change \'Author\' to \'Authors\' if it finds a comma.'),
+    'desc':tip.ToolTip(desc,'GUI description of this track. The description usually includes information such as where this track plays.'),
+    'len':tip.ToolTip(tLen,'The track\'s length, formatted as \'MM:SS\' or \'M:SS\' if the minute count is only one digit. Used for looping. Automatically determined when a song file is selected.'),
+    'del':tip.ToolTip(delBtn,'Delete the currently selected track from the track list.'),
+    'add':tip.ToolTip(add,'Generate a track object with the current parameters and add it to the track list.'),
+    'loadbtn':tip.ToolTip(load,'Replace all current values with ones from the current selection in the track list.'),
+    'compile':tip.ToolTip(compileBtn,'Generate a BEE2 package from this project.')
+}
+
+def refreshTips():
+    print('Refreshing tooltips...')
+    for i in tips:
+        tip = tips[i]
+        tip.__init__(tip.widget,tip.msg,tip.delay,tip.follow,tip.refresh,tip.x_offset,tip.y_offset,{},bg=darkTip,fg=light)
+        print('[Refresh tooltips] tooltip ',tuple(tips.keys()).index(i)+1,'/',len(tips),' refreshed!',sep='')
+    print('Tooltips refreshed!')
 
 reloadTheme()
 
